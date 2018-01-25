@@ -1,0 +1,49 @@
+image: registry.gitlab.com/kolanich-subgroups/docker-images/fixed_python:latest
+#image: registry.gitlab.com/kolanich-subgroups/docker-images/python_graal_docker:latest
+
+variables:
+  DOCKER_DRIVER: overlay2
+  SAST_ANALYZER_IMAGE_TAG: latest
+  SAST_DISABLE_DIND: "true"
+  SAST_CONFIDENCE_LEVEL: 5
+  CODECLIMATE_VERSION: latest
+
+include:
+  - template: SAST.gitlab-ci.yml
+  - template: Code-Quality.gitlab-ci.yml
+
+build:
+  tags:
+    - shared
+  stage: build
+  variables:
+    GIT_DEPTH: "1"
+    PYTHONUSERBASE: "${CI_PROJECT_DIR}/python_user_packages"
+
+  cache:
+    paths:
+      - $PYTHONUSERBASE
+      - ./molFiles
+
+  before_script:
+    - export PATH="$PATH:$PYTHONUSERBASE/bin" # don't move into `variables`
+    - mkdir ./molFiles || true;
+    - wget -nc -O ./molFiles/CuPc.sdf https://webbook.nist.gov/cgi/cbook.cgi?Str3File=C147148 || true
+    - wget -nc -O ./molFiles/DCM.sdf https://webbook.nist.gov/cgi/cbook.cgi?Str3File=C75092 || true
+    - mkdir ./scad
+  script:
+    - python3 setup.py bdist_wheel
+    - pip3 install --upgrade --user --pre ./dist/*.whl
+    - coverage run -a --source=mol2scad mol2scad.py ./molFiles/CuPc.sdf >./scad/CuPc.scad
+    - coverage run -a --source=mol2scad mol2scad.py ./molFiles/DCM.sdf > ./scad/DCM.scad
+    - cp ./util.scad ./scad/
+    - coverage report -m
+    - coveralls || true;
+    - codecov || true;
+  coverage: "/^TOTAL(?:\\s*\\d+){4}\\s(\\d+%).+/"
+  artifacts:
+    paths:
+      - dist
+      - scad
+    #reports:
+    #  junit: ./rspec.xml

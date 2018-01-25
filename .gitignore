@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+*.pyo
+./mol2scad.py.egg-info
+./build
+./dist
+./.eggs
+*.mol
+*.sdf
+*.scad
